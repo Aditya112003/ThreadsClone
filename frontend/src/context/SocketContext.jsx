@@ -13,7 +13,7 @@ export const SocketContextProvider = ({ children }) => {
 
   useEffect(() => {
     if (user?._id) {
-      const socketConnection = io("http://localhost:3000", {
+      const socketConnection = io("/", {
         query: {
           userId: user._id,
         },

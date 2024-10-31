@@ -4,12 +4,17 @@ import { v2 as cloudinary } from "cloudinary";
 
 const createPost = async (req, res) => {
   try {
-    const { postedBy, text } = req.body;
-    let { img } = req.body;
+    const { postedBy, text, img } = req.body;
 
-    if (!postedBy || !text) {
+    if (!postedBy) {
       return res.status(400).json({
-        error: "Posted by and text fields are required.",
+        error: "Posted by field is empty.",
+      });
+    }
+
+    if (!text && !img) {
+      return res.status(400).json({
+        error: "Add some text or an image to post.",
       });
     }
 
@@ -23,13 +28,13 @@ const createPost = async (req, res) => {
 
     if (user._id.toString() !== req.user._id.toString()) {
       return res.status(401).json({
-        error: "You are not authorized to create post.",
+        error: "You are not authorized to create this post.",
       });
     }
 
     const maxLength = 500;
 
-    if (text.length > maxLength) {
+    if (text && text.length > maxLength) {
       return res.status(400).json({
         error: `Text must be less than ${maxLength} characters.`,
       });

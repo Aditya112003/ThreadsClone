@@ -5,15 +5,40 @@ import PostPage from "./pages/PostPage";
 import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
-import { useRecoilValue } from "recoil";
+import { useRecoilState } from "recoil";
 import userAtom from "./atoms/userAtom";
 import UpdateProfilePage from "./pages/UpdateProfilePage";
 import CreatePost from "./components/CreatePost";
 import ChatPage from "./pages/ChatPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { useEffect } from "react";
+
 function App() {
-  const user = useRecoilValue(userAtom);
+  const [user, setUser] = useRecoilState(userAtom);
   const { pathname } = useLocation();
+
+  useEffect(() => {
+    const verifyUser = async () => {
+      try {
+        const res = await fetch("/api/auth/verify", {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          throw new Error("Session Expired");
+        }
+        const data = await res.json();
+        setUser(data.user);
+      } catch (err) {
+        console.log(err);
+        setUser(null);
+        localStorage.removeItem("user-threads");
+      }
+    };
+    verifyUser();
+  }, [setUser]);
+
   return (
     <Box position={"relative"} w="full">
       <Container

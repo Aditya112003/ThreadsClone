@@ -10,42 +10,43 @@ const getUserProfile = async (req, res) => {
   try {
     let user;
 
-    // query is userId
     if (mongoose.Types.ObjectId.isValid(query)) {
-      user = await User.findOne({ _id: query })
-        .select("-password")
-        .select("-updateAt");
+      // If query is an ObjectId (userId)
+      user = await User.findOne({ _id: query }).select("-password -updatedAt");
     } else {
-      // query is username
-      user = await User.findOne({ username: query })
-        .select("-password")
-        .select("-updateAt");
+      // If query is a username (make it case insensitive)
+      user = await User.findOne({
+        username: { $regex: new RegExp("^" + query + "$", "i") },
+      }).select("-password -updatedAt");
     }
 
     if (!user) {
-      return res.status(404).json({
-        error: "User not found",
-      });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.status(200).json(user);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 };
 
 const signupUser = async (req, res) => {
   try {
     const { name, email, username, password } = req.body;
-    const user = await User.findOne({
+
+    // Check if email or username is already in use
+    const existingUser = await User.findOne({
       $or: [{ email }, { username }],
     });
 
-    if (user) {
+    if (existingUser) {
+      res.clearCookie("jwt", { httpOnly: true, sameSite: "strict", path: "/" });
+
       return res.status(400).json({
-        message: "User already exists.",
+        message:
+          existingUser.email === email
+            ? "Email is already in use."
+            : "Username is already taken.",
       });
     }
 
@@ -58,27 +59,23 @@ const signupUser = async (req, res) => {
       username,
       password: hashedPassword,
     });
+
     await newUser.save();
 
-    if (newUser) {
-      generateTokenAndSetCookie(newUser._id, res);
+    // Generate token and send user data
+    generateTokenAndSetCookie(newUser._id, res);
 
-      res.status(201).json({
-        _id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        username: newUser.username,
-        bio: newUser.bio,
-        profilePic: newUser.profilePic,
-      });
-    } else {
-      res.status(400).json({
-        message: "Invalid user data",
-      });
-    }
+    res.status(201).json({
+      _id: newUser._id,
+      name: newUser.name,
+      email: newUser.email,
+      username: newUser.username,
+      bio: newUser.bio,
+      profilePic: newUser.profilePic,
+    });
   } catch (err) {
     res.status(500).json({
-      error: err.message,
+      message: "Internal server error",
     });
   }
 };
@@ -101,7 +98,6 @@ const loginUser = async (req, res) => {
       await user.save();
     }
 
-    // Generate token
     generateTokenAndSetCookie(user._id, res);
 
     res.status(200).json({
@@ -156,8 +152,12 @@ const followUnFollowUser = async (req, res) => {
         message: "User unfollowed successfully",
       });
     } else {
-      await User.findByIdAndUpdate(id, { $push: { followers: req.user._id } });
-      await User.findByIdAndUpdate(req.user._id, { $push: { following: id } });
+      await User.findByIdAndUpdate(id, {
+        $addToSet: { followers: req.user._id },
+      });
+      await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { following: id },
+      });
       res.status(200).json({
         message: "User followed successfully",
       });
